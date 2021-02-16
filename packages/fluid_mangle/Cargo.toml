@@ -1,0 +1,7 @@
+[package]
+name = "fluid_mangle"
+version = "0.1.0"
+authors = ["Anhad Singh <andypythonappdeveloper@gmail.com>"]
+edition = "2018"
+
+[dependencies]

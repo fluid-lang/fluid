@@ -1,0 +1,5 @@
+function main(argc: number, argv: number) -> number {
+    return argc;
+}
+
+function yo() {}

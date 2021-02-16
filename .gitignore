@@ -1,0 +1,6 @@
+# Folders
+target
+
+# Files
+Cargo.lock
+history.txt

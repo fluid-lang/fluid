@@ -1,0 +1,9 @@
+[package]
+name = "fluid_error"
+version = "0.1.0"
+authors = ["Anhad Singh <andypythonappdeveloper@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ansi_term = "0.12.1"
+termcolor = "1.1.2"

@@ -1,0 +1,39 @@
+// Get some functions from libm
+extern {
+    function asin(x: float) -> float;
+    function cos(x: float) -> float;
+}
+
+function overload(x: float, y: float) -> float {
+    return x;
+}
+
+function overload(x: number, y: number) -> number {
+    return y;
+}
+
+// The hello function
+function hello() -> number {
+    var henlo_world: string = "Henlo, World!";
+
+    overload(1, 1);
+    overload(1.0, 1.0);
+
+    print(1);
+    print(1.1);
+    print("Hello, World!");
+    print(henlo_world);
+
+    return 0;
+}
+
+// The main function takes two arguments argc and argv
+// - argc stands for argument count
+// - argv stands for argument vector
+function main(argc: number, argv: number) -> number {
+    var return_value: number = hello();
+
+    // The return value from the main function will be the exit code of the program.
+    // The last exit code in bash/powershell can be found using the command echo $:?
+    return return_value;
+}

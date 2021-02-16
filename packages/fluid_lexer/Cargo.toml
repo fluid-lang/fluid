@@ -1,0 +1,8 @@
+[package]
+name = "fluid_lexer"
+version = "0.1.0"
+authors = ["Anhad Singh <andypythonappdeveloper@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+fluid_error = { path = "../fluid_error/" }
