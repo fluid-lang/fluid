@@ -15,7 +15,7 @@
 > ⚠⚠⚠ Fluid is in a very early stage of developement and should not be used for production use. ⚠⚠⚠
 
 ## Welcome to Fluid
-Fluid is a new fast, open source, statically typed programming language with mordern syntax that makes it easy to build simple, reliable, and efficient software.
+Fluid is a new fast, open source, statically typed programming language with modern syntax without sacrificing performance, that makes it easy to build simple, reliable, and efficient software.
 
 ### What does Fluid code look like?
 ```

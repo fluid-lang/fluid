@@ -9,8 +9,8 @@ macro_rules! advance {
             advance!($self);
 
             $(
-                if $self.peek().is_some() && $char == $self.current_char() {
-                    let token = $self.new_token($ret);
+                if !$self.is_eof() && $char == $self.current_char() {
+                    let token = $self.new_token($ret, $self.index, $self.index + 2);
 
                     advance!($self);
 
@@ -21,12 +21,12 @@ macro_rules! advance {
             $default
         };
 
-        let token = $self.new_token(tok);
+        let token = $self.new_token(tok, $self.index, $self.index + 1);
 
         return Ok(token);
     }};
     ($self:ident, $token:expr) => {{
-        let token = $self.new_token($token);
+        let token = $self.new_token($token, $self.index, $self.index + 1);
 
         advance!($self);
 

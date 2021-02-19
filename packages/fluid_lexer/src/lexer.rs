@@ -1,8 +1,6 @@
 //! This file contains the actual lexer implementation, the `Lexer` interface.
 
-use std::process;
-
-use fluid_error::{lex_error, Error, ErrorType};
+use fluid_error::Error;
 
 use crate::advance;
 use crate::token::*;
@@ -35,9 +33,9 @@ impl Lexer {
     /// Runs `self.get_next_token()` until the current character is not EOF.
     /// After it has encountered EOF it appends the EOF Token.
     /// Then it returns all of the collected tokens.
-    pub fn run(&mut self) -> Vec<Token> {
+    pub fn run(&mut self) -> Result<Vec<Token>, Vec<Error>> {
         let mut tokens = vec![];
-        let mut panicked = false;
+        let mut errors = vec![];
 
         loop {
             match self.get_next_token() {
@@ -54,31 +52,29 @@ impl Lexer {
 
                 Err(err) => {
                     // Enter panic mode if there is an error.
-                    panicked = true;
-                    err.flush();
+                    errors.push(err);
 
                     advance!(self);
                 }
             }
         }
 
-        // Exit if the lexer has panicked
-        if panicked {
-            process::exit(1);
+        // Exit if the lexer has panicked.
+        if errors.is_empty() {
+            Ok(tokens)
+        } else {
+            Err(errors)
         }
-
-        tokens
     }
 
     /// Returns the current character.
-    /// TODO: Remove every usage of current_char and replace it with peek and handle if there is an expected char.
     fn current_char(&self) -> char {
         self.code.chars().nth(self.index).unwrap()
     }
 
-    /// Peek the current character.
-    fn peek(&self) -> Option<char> {
-        self.code.chars().nth(self.index)
+    /// Check if lexer has reached the EOF (End of File)
+    fn is_eof(&self) -> bool {
+        self.code.chars().nth(self.index).is_none()
     }
 
     /// Scans the next character a new `Token`.
@@ -86,9 +82,9 @@ impl Lexer {
     pub fn get_next_token(&mut self) -> Result<Token, Error> {
         self.skip_whitespaces_and_comments();
 
-        if self.peek().is_none() {
+        if self.is_eof() {
             // Return the EOF token if the lexer has reached at the end of the file.
-            return Ok(self.new_token(TokenType::EOF));
+            return Ok(self.new_token(TokenType::EOF, self.index, self.index));
         }
 
         if let Some(token) = self.collect_id() {
@@ -120,21 +116,20 @@ impl Lexer {
             '=' => advance!(self, ['=' => TokenType::EqEq, '>' => TokenType::EArrow], TokenType::Eq),
             '"' => self.collect_str(),
             '\'' => self.collect_char(),
-            _ => lex_error!(
-                self,
-                ["Roses are red, violets are blue. Unexpected character `", self.current_char(), "`", " on line ", self.line.to_string()]
-            ),
+            _ => Err(self.throw_unexpected_char()),
         }
     }
 
     /// Collect a string.
     fn collect_str(&mut self) -> Result<Token, Error> {
+        let index = self.index;
+
         // Advance '"'
         advance!(self);
 
         let mut string = String::new();
 
-        while self.peek().is_some() && self.current_char() != '"' {
+        while !self.is_eof() && self.current_char() != '"' {
             string.push(self.current_char());
             advance!(self);
         }
@@ -142,11 +137,13 @@ impl Lexer {
         // Advance '"'
         advance!(self);
 
-        Ok(self.new_token(TokenType::String(string)))
+        Ok(self.new_token(TokenType::String(string), index, self.index))
     }
 
     /// Collect a character
     fn collect_char(&mut self) -> Result<Token, Error> {
+        let index = self.index;
+
         // Advance "'"
         advance!(self);
 
@@ -156,42 +153,43 @@ impl Lexer {
         advance!(self);
         advance!(self);
 
-        Ok(self.new_token(TokenType::Char(char_v)))
+        Ok(self.new_token(TokenType::Char(char_v), index, self.index))
     }
 
     /// Collect an identifier.
     fn collect_id(&mut self) -> Option<Token> {
+        let index = self.index;
         let mut id = String::new();
 
-        while self.peek().is_some() && (self.current_char().is_alphabetic() || self.current_char() == '_') {
+        while !self.is_eof() && (self.current_char().is_alphabetic() || self.current_char() == '_') {
             id.push(self.current_char());
             advance!(self);
         }
 
         if id != String::new() {
             match id.as_str() {
-                "function" => Some(self.new_token(TokenType::Keyword(Keyword::Fn))),
-                "extern" => Some(self.new_token(TokenType::Keyword(Keyword::Extern))),
+                "function" => Some(self.new_token(TokenType::Keyword(Keyword::Fn), index, self.index)),
+                "extern" => Some(self.new_token(TokenType::Keyword(Keyword::Extern), index, self.index)),
 
-                "return" => Some(self.new_token(TokenType::Keyword(Keyword::Return))),
-                "var" => Some(self.new_token(TokenType::Keyword(Keyword::Var))),
+                "return" => Some(self.new_token(TokenType::Keyword(Keyword::Return), index, self.index)),
+                "var" => Some(self.new_token(TokenType::Keyword(Keyword::Var), index, self.index)),
 
-                "as" => Some(self.new_token(TokenType::Keyword(Keyword::As))),
-                "unsafe" => Some(self.new_token(TokenType::Keyword(Keyword::Unsafe))),
-                "inline" => Some(self.new_token(TokenType::Keyword(Keyword::Inline))),
+                "as" => Some(self.new_token(TokenType::Keyword(Keyword::As), index, self.index)),
+                "unsafe" => Some(self.new_token(TokenType::Keyword(Keyword::Unsafe), index, self.index)),
+                "inline" => Some(self.new_token(TokenType::Keyword(Keyword::Inline), index, self.index)),
 
-                "null" => Some(self.new_token(TokenType::Keyword(Keyword::Null))),
+                "null" => Some(self.new_token(TokenType::Keyword(Keyword::Null), index, self.index)),
 
-                "if" => Some(self.new_token(TokenType::Keyword(Keyword::If))),
-                "else" => Some(self.new_token(TokenType::Keyword(Keyword::Else))),
+                "if" => Some(self.new_token(TokenType::Keyword(Keyword::If), index, self.index)),
+                "else" => Some(self.new_token(TokenType::Keyword(Keyword::Else), index, self.index)),
 
-                "true" => Some(self.new_token(TokenType::Keyword(Keyword::True))),
-                "false" => Some(self.new_token(TokenType::Keyword(Keyword::False))),
+                "true" => Some(self.new_token(TokenType::Keyword(Keyword::True), index, self.index)),
+                "false" => Some(self.new_token(TokenType::Keyword(Keyword::False), index, self.index)),
 
-                "for" => Some(self.new_token(TokenType::Keyword(Keyword::For))),
-                "loop" => Some(self.new_token(TokenType::Keyword(Keyword::Loop))),
+                "for" => Some(self.new_token(TokenType::Keyword(Keyword::For), index, self.index)),
+                "loop" => Some(self.new_token(TokenType::Keyword(Keyword::Loop), index, self.index)),
 
-                _ => Some(self.new_token(TokenType::Identifier(id))),
+                _ => Some(self.new_token(TokenType::Identifier(id), index, self.index)),
             }
         } else {
             None
@@ -200,14 +198,15 @@ impl Lexer {
 
     /// Collect a number.
     fn collect_number(&mut self) -> Option<Token> {
+        let index = self.index;
         let mut number = String::new();
         let mut typee = "number";
 
-        while self.peek().is_some() && self.current_char().is_ascii_digit() {
+        while !self.is_eof() && self.current_char().is_ascii_digit() {
             number.push(self.current_char());
             advance!(self);
 
-            if self.peek().is_some() && self.current_char() == '.' {
+            if !self.is_eof() && self.current_char() == '.' {
                 typee = "float";
                 number.push('.');
 
@@ -217,8 +216,8 @@ impl Lexer {
 
         if number != String::new() {
             match typee {
-                "number" => return Some(self.new_token(TokenType::Number(number.parse().unwrap()))),
-                "float" => return Some(self.new_token(TokenType::Float(number.parse().unwrap()))),
+                "number" => return Some(self.new_token(TokenType::Number(number.parse().unwrap()), index, self.index)),
+                "float" => return Some(self.new_token(TokenType::Float(number.parse().unwrap()), index, self.index)),
                 _ => unreachable!(),
             }
         }
@@ -228,7 +227,7 @@ impl Lexer {
 
     /// Skip all of the white spaces and comments.
     fn skip_whitespaces_and_comments(&mut self) {
-        while self.peek().is_some() {
+        while !self.is_eof() {
             match self.current_char() {
                 '\n' => {
                     advance!(self);
@@ -237,8 +236,8 @@ impl Lexer {
                 }
                 '\r' => advance!(self),
                 '/' => {
-                    if self.peek().is_some() && self.current_char() == '/' {
-                        while self.peek().is_some() {
+                    if !self.is_eof() && self.current_char() == '/' {
+                        while !self.is_eof() {
                             if self.current_char() == '\n' {
                                 break;
                             }
@@ -256,11 +255,16 @@ impl Lexer {
         }
     }
 
-    /// Create a token with its mentioned type
-    fn new_token(&self, kind: TokenType) -> Token {
-        let index = self.index;
-        let line = self.line;
+    /// Throw a unexpected char error.
+    #[inline]
+    fn throw_unexpected_char(&mut self) -> Error {
+        todo!()
+    }
 
-        Token { kind, index, line }
+    /// Create a token with its mentioned type
+    fn new_token(&self, kind: TokenType, pos_start: usize, pos_end: usize) -> Token {
+        let position = TokenPosition::new(pos_start, pos_end, self.line);
+
+        Token::new(kind, position)
     }
 }

@@ -6,7 +6,7 @@ use ansi_term::Colour;
 use rustyline::Editor;
 use structopt::StructOpt;
 
-use std::{error::Error, fs::File, io::Read};
+use std::{error::Error, fs::File, io::Read, process};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "At the prompt you can type Fluid Code or type repl commands preceded by a `.`
@@ -56,8 +56,19 @@ fn run_file(path: String) -> Result<(), Box<dyn Error>> {
 
     let mut codegen = CodeGen::new(&path, CodeGenType::JIT { run_main: true });
 
-    let lexer = Lexer::new(contents, path);
-    let parser = Parser::new(lexer);
+    let mut lexer = Lexer::new(contents, path);
+    let tokens = match lexer.run() {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            for err in errors {
+                println!("{}", err);
+            }
+
+            process::exit(1);
+        }
+    };
+
+    let parser = Parser::new(tokens);
 
     codegen.run(parser);
     codegen.free();
@@ -71,8 +82,19 @@ fn build_file(path: String, emit_llvm: bool) -> Result<(), Box<dyn Error>> {
 
     file.read_to_string(&mut contents)?;
 
-    let lexer = Lexer::new(&contents, &path);
-    let parser = Parser::new(lexer);
+    let mut lexer = Lexer::new(&contents, &path);
+    let tokens = match lexer.run() {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            for err in errors {
+                println!("{}", err);
+            }
+
+            process::exit(1);
+        }
+    };
+
+    let parser = Parser::new(tokens);
 
     if emit_llvm {
         let mut codegen = CodeGen::new(&path, CodeGenType::JIT { run_main: false });
@@ -114,8 +136,19 @@ fn repl() -> Result<(), Box<dyn Error>> {
                     match code.as_str() {
                         "help" => println!("{}", Colour::Yellow.paint(HELP)),
                         _ => {
-                            let lexer = Lexer::new(&code, &"<stdin>".into());
-                            let parser = Parser::new(lexer);
+                            let mut lexer = Lexer::new(&code, &"<stdin>".into());
+                            let tokens = match lexer.run() {
+                                Ok(tokens) => tokens,
+                                Err(errors) => {
+                                    for err in errors {
+                                        println!("{}", err);
+                                    }
+
+                                    continue;
+                                }
+                            };
+
+                            let parser = Parser::new(tokens);
 
                             codegen.run(parser);
                         }

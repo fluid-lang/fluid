@@ -9,7 +9,6 @@ edition = "2018"
 llvm-sys = "110"
 
 # Language Items
-fluid_lexer = { path = "../fluid_lexer/" }
 fluid_parser = { path = "../fluid_parser/" }
 fluid_error = { path = "../fluid_error/" }
 fluid_mangle = { path = "../fluid_mangle/" }

@@ -1,6 +1,9 @@
 # Folders
 target
 
+.vscode
+.idea
+
 # Files
 Cargo.lock
 history.txt

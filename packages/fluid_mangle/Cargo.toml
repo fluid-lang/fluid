@@ -5,3 +5,4 @@ authors = ["Anhad Singh <andypythonappdeveloper@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+fluid_parser = { path = "../fluid_parser/" }

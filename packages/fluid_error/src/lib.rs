@@ -1,5 +1,7 @@
 #![deny(unsafe_code)]
 
+use std::fmt::Display;
+
 use ansi_term::Colour::{Fixed, Red};
 
 #[derive(Debug)]
@@ -61,5 +63,13 @@ impl std::fmt::Display for ErrorType {
         match *self {
             ErrorType::Lexer => write!(f, "lex"),
         }
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.flush();
+
+        Ok(())
     }
 }

@@ -9,9 +9,8 @@ use std::{
 
 use backtrace::Backtrace;
 
-use fluid_lexer::{Keyword, TokenType};
 use fluid_mangle::*;
-use fluid_parser::{Function, Parser, Prototype, Statement, Type};
+use fluid_parser::{Function, Parser, Prototype, Type};
 
 use llvm::{
     analysis::*,
@@ -27,7 +26,7 @@ use crate::{
     symbol::{FluidFunctionRef, FluidVariableRef, SymbolTable},
 };
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 
 /// Type of codegen to do.
 #[derive(Debug, PartialEq)]
@@ -129,37 +128,13 @@ impl CodeGen {
 
     /// Run codegen.
     pub fn run(&mut self, mut parser: Parser) {
-        while parser.index < parser.tokens.len() && *parser.peek() != TokenType::EOF {
-            match *parser.peek() {
-                TokenType::Keyword(Keyword::Fn) => {
-                    let function = parser.parse_fn_def();
-
-                    unsafe {
-                        self.gen_function_def(function);
-                    }
-                }
-                TokenType::Keyword(Keyword::Extern) => {
-                    let externs = parser.parse_extern();
-
-                    unsafe {
-                        for external in externs {
-                            self.gen_extern_def(external);
-                        }
-                    }
-                }
-                _ => {
-                    if self.codegen_type == CodeGenType::Repl {
-                        let statement = parser.parse_statement();
-
-                        unsafe {
-                            self.gen_top_level(statement);
-                        }
-                    }
-                }
-            }
-        }
+        let ast = parser.run();
 
         unsafe {
+            for statement in ast {
+                self.gen_statement(statement);
+            }
+
             if let CodeGenType::JIT { run_main } = self.codegen_type {
                 if run_main {
                     self.run_main()
@@ -190,9 +165,6 @@ impl CodeGen {
             LLVMDisposeExecutionEngine(self.execution_engine);
         }
     }
-
-    /// Generate a top level statement for repl only.
-    unsafe fn gen_top_level(&mut self, _statement: Statement) {}
 
     /// Run the main function.
     unsafe fn run_main(&mut self) -> ! {
@@ -234,7 +206,7 @@ impl CodeGen {
 
     /// Generate the function definition.
     pub(crate) unsafe fn gen_function_def(&mut self, mut function: Function) {
-        function.prototype.name = mangle_name(function.prototype.name);
+        function.prototype.name = mangle_function_name(function.prototype.name, function.prototype.args.iter().map(|arg| arg.typee).collect::<Vec<_>>());
 
         let function_name = function.prototype.name.clone();
         let function_value = self.gen_prototype(&function.prototype);
@@ -269,13 +241,13 @@ impl CodeGen {
             LLVMBuildRetVoid(self.builder);
         }
 
+        // Dump the generated ir.
+        self.dump_value(function_value);
+
         if LLVMVerifyFunction(function_value, LLVMVerifierFailureAction::LLVMReturnStatusAction) == 1 {
             LLVMDeleteFunction(function_value);
             panic!("Fluid generated invalid function ir.")
         }
-
-        // Dump the generated ir.
-        self.dump_value(function_value);
     }
 
     /// Generate an external definition.

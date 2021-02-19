@@ -1,3 +1,4 @@
+use fluid_mangle::mangle_function_name;
 use fluid_parser::{BinaryOp, Expression, Literal, Type, UnaryOp};
 
 use llvm_sys::core::*;
@@ -33,10 +34,6 @@ impl CodeGen {
     pub(crate) unsafe fn gen_binary(&mut self, lhs: &Expression, op: &BinaryOp, rhs: &Expression) -> FluidValueRef {
         let lhs = self.gen_expression(lhs);
         let rhs = self.gen_expression(rhs);
-
-        if lhs.kind != Type::Number && rhs.kind != Type::Number || lhs.kind != Type::Float && rhs.kind != Type::Float {
-            panic!()
-        }
 
         let res = match op {
             BinaryOp::Add => {
@@ -94,10 +91,11 @@ impl CodeGen {
             cargs.push(arg);
         }
 
-        let func = self.symbol_table.get_function(name);
+        let func_name = mangle_function_name(name.into(), cargs.iter().map(|fref| fref.kind).collect::<Vec<_>>());
+        let func = self.symbol_table.get_function(&func_name);
         let func = match func {
             Some(func) => func,
-            None => self.symbol_table.current_scope_parent().get_function(name).unwrap(),
+            None => self.symbol_table.current_scope_parent().get_function(&func_name).unwrap(),
         };
 
         let value = LLVMBuildCall(

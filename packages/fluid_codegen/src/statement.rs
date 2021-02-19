@@ -1,4 +1,4 @@
-use fluid_parser::{Expression, Statement, Type};
+use fluid_parser::{Declaration, Expression, Statement, Type};
 
 use llvm_sys::core::*;
 
@@ -27,7 +27,19 @@ impl CodeGen {
             Statement::Return(expression) => self.gen_return_statement(*expression),
             Statement::VarDef(name, kind, value) => self.gen_var_def(name, kind, *value),
             Statement::Block(block) => self.gen_block(block),
+            Statement::Declaration(decl) => self.gen_decl(*decl),
             _ => unimplemented!(),
+        }
+    }
+
+    pub(crate) unsafe fn gen_decl(&mut self, decl: Declaration) {
+        match decl {
+            Declaration::Function(function) => self.gen_function_def(function),
+            Declaration::Extern(externs) => {
+                for external in externs {
+                    self.gen_extern_def(external);
+                }
+            }
         }
     }
 

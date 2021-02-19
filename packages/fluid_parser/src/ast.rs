@@ -83,6 +83,17 @@ pub enum Statement {
     For(),
     /// A block statement.
     Block(Vec<Statement>),
+    /// A declaration statement.
+    Declaration(Box<Declaration>),
+}
+
+/// A declaration.
+#[derive(Debug)]
+pub enum Declaration {
+    /// A function declaration.
+    Function(Function),
+    /// An external declaration.
+    Extern(Vec<Prototype>),
 }
 
 /// A function

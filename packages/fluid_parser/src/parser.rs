@@ -1,9 +1,7 @@
 //! This file contains the parser implementation, the `Parser` interface.
 //!
-//! Though fluid's parser is a resursive parser, here is the binary precedence table
-//! for reference.
+//! Here is the binary precedence table for reference.
 //!
-//! ```rust
 //! Assignment = 1                 =          (1 case)
 //! Or = 2                         ||         (1 case)
 //! And = 3                        &&         (1 case)
@@ -11,9 +9,9 @@
 //! Comparison = 5                 <, >       (2 cases)
 //! Term = 6                       +, -       (2 cases)
 //! Factor = 7                     *, /       (2 cases)
-//! ```
+//!
 
-use fluid_lexer::{Keyword, Lexer, Token, TokenType};
+use fluid_lexer::{Keyword, Token, TokenType};
 
 use crate::advance;
 use crate::ast::*;
@@ -29,24 +27,31 @@ pub struct Parser {
 
 impl Parser {
     /// Create a new instance of the parser.
-    pub fn new(mut lexer: Lexer) -> Self {
-        let tokens = lexer.run();
+    pub fn new(tokens: Vec<Token>) -> Self {
         let index = 0;
 
         Self { tokens, index }
     }
 
     /// Run the parser.
-    pub fn run(&mut self) {}
+    pub fn run(&mut self) -> Vec<Statement> {
+        let mut ast = vec![];
+
+        while self.index < self.tokens.len() && *self.peek() != TokenType::EOF {
+            ast.push(self.parse_statement());
+        }
+
+        ast
+    }
 
     /// Parse a function definition.
-    pub fn parse_fn_def(&mut self) -> Function {
+    fn parse_fn_def(&mut self) -> Statement {
         let prototype = self.parse_proto();
         let body = self.parse_block();
 
         let func = Function { prototype, body };
 
-        func
+        Statement::Declaration(Box::new(Declaration::Function(func)))
     }
 
     fn parse_type(&mut self) -> Type {
@@ -100,7 +105,7 @@ impl Parser {
     }
 
     /// Parse a extern definition
-    pub fn parse_extern(&mut self) -> Vec<Prototype> {
+    fn parse_extern(&mut self) -> Statement {
         let mut externs = vec![];
 
         advance!(self, TokenType::Keyword(Keyword::Extern));
@@ -113,7 +118,7 @@ impl Parser {
 
         advance!(self, TokenType::CloseBrace);
 
-        externs
+        Statement::Declaration(Box::new(Declaration::Extern(externs)))
     }
 
     /// Parse a block.
@@ -138,6 +143,8 @@ impl Parser {
             TokenType::Keyword(Keyword::If) => self.parse_if(),
             TokenType::Keyword(Keyword::Var) => self.parse_var_def(),
             TokenType::Keyword(Keyword::For) => self.parse_for(),
+            TokenType::Keyword(Keyword::Fn) => self.parse_fn_def(),
+            TokenType::Keyword(Keyword::Extern) => self.parse_extern(),
             TokenType::OpenBrace => self.parse_block(),
             _ => Statement::Expression(Box::new(self.parse_expression_statement())),
         };
