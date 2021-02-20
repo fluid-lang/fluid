@@ -1,7 +1,7 @@
 use fluid_mangle::mangle_function_name;
 use fluid_parser::{BinaryOp, Expression, Literal, Type, UnaryOp};
 
-use llvm_sys::core::*;
+use llvm::core::*;
 
 use crate::{cstring, utils::FluidValueRef, CodeGen};
 
@@ -110,13 +110,13 @@ impl CodeGen {
     }
 
     /// Generate an number literal.
-    #[inline(always)]
+    #[inline]
     pub(crate) unsafe fn gen_number_literal(&mut self, number: u64) -> FluidValueRef {
         FluidValueRef::new(Type::Number, LLVMConstInt(LLVMInt64TypeInContext(self.context), number, 0))
     }
 
     /// Generate an boolean literal.
-    #[inline(always)]
+    #[inline]
     pub(crate) unsafe fn gen_bool_literal(&mut self, bool: bool) -> FluidValueRef {
         let value = if bool { 1 } else { 0 };
 

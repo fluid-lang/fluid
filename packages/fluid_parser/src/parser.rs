@@ -2,13 +2,13 @@
 //!
 //! Here is the binary precedence table for reference.
 //!
-//! Assignment = 1                 =          (1 case)
-//! Or = 2                         ||         (1 case)
-//! And = 3                        &&         (1 case)
-//! Equality = 4                   ==         (1 case)
-//! Comparison = 5                 <, >       (2 cases)
-//! Term = 6                       +, -       (2 cases)
-//! Factor = 7                     *, /       (2 cases)
+//! Assignment = 1                 =          (1 case) \
+//! Or = 2                         ||         (1 case) \
+//! And = 3                        &&         (1 case) \
+//! Equality = 4                   ==         (1 case) \
+//! Comparison = 5                 <, >       (2 cases) \
+//! Term = 6                       +, -       (2 cases) \
+//! Factor = 7                     *, /       (2 cases) \
 //!
 
 use fluid_lexer::{Keyword, Token, TokenType};
@@ -54,47 +54,71 @@ impl Parser {
         Statement::Declaration(Box::new(Declaration::Function(func)))
     }
 
+    /// Parse a type.
+    ///
+    /// Types: \
+    ///     => void \
+    ///     => number \
+    ///     => float \
+    ///     => string \
+    ///     => $tuple($(type),*)
+    ///
+    /// TODO: `void` should be a type alais for `()` an empty tuple.
     fn parse_type(&mut self) -> Type {
-        let id = advance!(self => TokenType::Identifier);
+        let kind = match self.peek() {
+            TokenType::Identifier(kind) => match kind.as_str() {
+                "void" => Type::Void,
+                "number" => Type::Number,
+                "float" => Type::Float,
+                "string" => Type::String,
+                _ => unimplemented!(),
+            },
+            TokenType::OpenParen => self.parse_tuple_type(),
 
-        match id.as_str() {
-            "void" => Type::Void,
-            "number" => Type::Number,
-            "float" => Type::Float,
-            "string" => Type::String,
-            _ => unimplemented!(),
-        }
+            _ => panic!("Expected a type."),
+        };
+
+        advance!(self);
+
+        kind
+    }
+
+    /// Parse a tuple type.
+    ///
+    /// $tuple($(type),*)
+    fn parse_tuple_type(&mut self) -> Type {
+        todo!()
     }
 
     /// Parse function prototype.
     fn parse_proto(&mut self) -> Prototype {
-        advance!(self, TokenType::Keyword(Keyword::Fn));
+        self.expect(TokenType::Keyword(Keyword::Fn));
 
         let name = advance!(self => TokenType::Identifier);
         let mut args = vec![];
 
-        advance!(self, TokenType::OpenParen);
+        self.expect(TokenType::OpenParen);
 
         while *self.peek() != TokenType::CloseParen {
             let arg_name = advance!(self => TokenType::Identifier);
 
-            advance!(self, TokenType::Colon);
+            self.expect(TokenType::Colon);
 
             let arg_type = self.parse_type();
 
             if *self.peek() != TokenType::CloseParen {
-                advance!(self, TokenType::Comma);
+                self.expect(TokenType::Comma);
             }
 
             args.push(Arg { name: arg_name, typee: arg_type });
         }
 
-        advance!(self, TokenType::CloseParen);
+        self.expect(TokenType::CloseParen);
 
         let return_type;
 
         if *self.peek() == TokenType::TArrow {
-            advance!(self, TokenType::TArrow);
+            self.expect(TokenType::TArrow);
 
             return_type = self.parse_type();
         } else {
@@ -108,22 +132,22 @@ impl Parser {
     fn parse_extern(&mut self) -> Statement {
         let mut externs = vec![];
 
-        advance!(self, TokenType::Keyword(Keyword::Extern));
-        advance!(self, TokenType::OpenBrace);
+        self.expect(TokenType::Keyword(Keyword::Extern));
+        self.expect(TokenType::OpenBrace);
 
         while *self.peek() != TokenType::CloseBrace {
             externs.push(self.parse_proto());
-            advance!(self, TokenType::Semi);
+            self.expect(TokenType::Semi);
         }
 
-        advance!(self, TokenType::CloseBrace);
+        self.expect(TokenType::CloseBrace);
 
         Statement::Declaration(Box::new(Declaration::Extern(externs)))
     }
 
     /// Parse a block.
     fn parse_block(&mut self) -> Statement {
-        advance!(self, TokenType::OpenBrace);
+        self.expect(TokenType::OpenBrace);
 
         let mut body = vec![];
 
@@ -131,7 +155,7 @@ impl Parser {
             body.push(self.parse_statement());
         }
 
-        advance!(self, TokenType::CloseBrace);
+        self.expect(TokenType::CloseBrace);
 
         Statement::Block(body)
     }
@@ -153,10 +177,10 @@ impl Parser {
     }
 
     fn parse_for(&mut self) -> Statement {
-        advance!(self, TokenType::Keyword(Keyword::For));
+        self.expect(TokenType::Keyword(Keyword::For));
 
-        advance!(self, TokenType::OpenParen);
-        advance!(self, TokenType::CloseParen);
+        self.expect(TokenType::OpenParen);
+        self.expect(TokenType::CloseParen);
 
         let _body = self.parse_block();
 
@@ -165,32 +189,32 @@ impl Parser {
 
     /// Parse a variable definition.
     fn parse_var_def(&mut self) -> Statement {
-        advance!(self, TokenType::Keyword(Keyword::Var));
+        self.expect(TokenType::Keyword(Keyword::Var));
 
         let name = advance!(self => TokenType::Identifier);
 
-        advance!(self, TokenType::Colon);
+        self.expect(TokenType::Colon);
 
         let typee = self.parse_type();
 
-        advance!(self, TokenType::Eq);
+        self.expect(TokenType::Eq);
 
         let value = self.parse_expression();
 
-        advance!(self, TokenType::Semi);
+        self.expect(TokenType::Semi);
 
         Statement::VarDef(name, typee, Box::new(value))
     }
 
     /// Parse if statement.
     fn parse_if(&mut self) -> Statement {
-        advance!(self, TokenType::Keyword(Keyword::If));
+        self.expect(TokenType::Keyword(Keyword::If));
 
-        advance!(self, TokenType::OpenParen);
+        self.expect(TokenType::OpenParen);
 
         let condition = self.parse_expression();
 
-        advance!(self, TokenType::CloseParen);
+        self.expect(TokenType::CloseParen);
 
         let body = self.parse_block();
         let elif = {
@@ -206,11 +230,11 @@ impl Parser {
 
     /// Parse return statement.
     fn parse_return(&mut self) -> Statement {
-        advance!(self, TokenType::Keyword(Keyword::Return));
+        self.expect(TokenType::Keyword(Keyword::Return));
 
         let value = self.parse_expression();
 
-        advance!(self, TokenType::Semi);
+        self.expect(TokenType::Semi);
 
         Statement::Return(Box::new(value))
     }
@@ -219,7 +243,7 @@ impl Parser {
     pub fn parse_expression_statement(&mut self) -> Expression {
         let expression = self.parse_expression();
 
-        advance!(self, TokenType::Semi);
+        self.expect(TokenType::Semi);
 
         expression
     }
@@ -236,17 +260,17 @@ impl Parser {
         if *self.peek() == TokenType::OpenParen {
             let mut params = vec![];
 
-            advance!(self, TokenType::OpenParen);
+            self.expect(TokenType::OpenParen);
 
             while *self.peek() != TokenType::CloseParen {
                 params.push(self.parse_expression());
 
                 if *self.peek() != TokenType::CloseParen {
-                    advance!(self, TokenType::Comma);
+                    self.expect(TokenType::Comma);
                 }
             }
 
-            advance!(self, TokenType::CloseParen);
+            self.expect(TokenType::CloseParen);
 
             Expression::FunctionCall(id, params)
         } else {
@@ -444,8 +468,16 @@ impl Parser {
         }
     }
 
+    fn expect(&mut self, token: TokenType) {
+        if *self.peek() == token {
+            advance!(self);
+        } else {
+            panic!("Expected {}", token)
+        }
+    }
+
     /// Peek the current token type.
-    pub fn peek(&self) -> &TokenType {
+    fn peek(&self) -> &TokenType {
         &self.tokens[self.index].kind
     }
 }

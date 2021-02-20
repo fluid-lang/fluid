@@ -11,7 +11,7 @@ use std::{error::Error, fs::File, io::Read, process};
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "At the prompt you can type Fluid Code or type repl commands preceded by a `.`
 
-    .clear => Reset the codegen context.
+    .reset => Reset the codegen context.
 
 For more information about fluid commands `fluid --help`";
 
@@ -129,7 +129,7 @@ fn repl() -> Result<(), Box<dyn Error>> {
                     let command = &code.as_str()[1..];
 
                     match command {
-                        "clear" => codegen.reset(),
+                        "reset" => codegen.reset(),
                         _ => println!("{}: Invalid repl command `{}`", Colour::Red.bold().paint("error"), command),
                     }
                 } else {

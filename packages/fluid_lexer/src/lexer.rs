@@ -176,7 +176,6 @@ impl Lexer {
 
                 "as" => Some(self.new_token(TokenType::Keyword(Keyword::As), index, self.index)),
                 "unsafe" => Some(self.new_token(TokenType::Keyword(Keyword::Unsafe), index, self.index)),
-                "inline" => Some(self.new_token(TokenType::Keyword(Keyword::Inline), index, self.index)),
 
                 "null" => Some(self.new_token(TokenType::Keyword(Keyword::Null), index, self.index)),
 

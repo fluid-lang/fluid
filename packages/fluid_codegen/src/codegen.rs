@@ -4,16 +4,14 @@ use std::{
     mem::{self, MaybeUninit},
     panic,
     path::Path,
-    process,
+    process, ptr,
 };
 
 use backtrace::Backtrace;
 
-use fluid_mangle::*;
-use fluid_parser::{Function, Parser, Prototype, Type};
+use fluid_parser::{Expression, Parser, Statement};
 
 use llvm::{
-    analysis::*,
     core::*,
     execution_engine::*,
     prelude::*,
@@ -21,12 +19,13 @@ use llvm::{
     *,
 };
 
-use crate::{
-    cstring,
-    symbol::{FluidFunctionRef, FluidVariableRef, SymbolTable},
-};
+use crate::{cstring, symbol::SymbolTable};
 
+#[cfg(debug_assertions)]
 const DEBUG: bool = true;
+
+#[cfg(not(debug_assertions))]
+const DEBUG: bool = false;
 
 /// Type of codegen to do.
 #[derive(Debug, PartialEq)]
@@ -61,6 +60,7 @@ pub struct CodeGen {
 impl CodeGen {
     /// Create a new codegen context.
     pub fn new<S: Into<String>>(module: S, codegen_type: CodeGenType) -> Self {
+        // Set the panic hook.
         panic::set_hook(Box::new(|info| {
             let backtrace = Backtrace::new();
 
@@ -78,15 +78,32 @@ impl CodeGen {
         let module = cstring!("{}", module.into());
 
         unsafe {
-            llvm::target::LLVM_InitializeNativeTarget();
-            llvm::target::LLVM_InitializeNativeAsmPrinter();
-            llvm::target::LLVM_InitializeNativeAsmParser();
+            // Initialize LLVM.
+            llvm::target::LLVM_InitializeAllTargetInfos();
+            llvm::target::LLVM_InitializeAllTargets();
+            llvm::target::LLVM_InitializeAllTargetMCs();
+            llvm::target::LLVM_InitializeAllAsmParsers();
+            llvm::target::LLVM_InitializeAllAsmPrinters();
+
+            // Get the default target triple of the machine.
+            let target_triple = target_machine::LLVMGetDefaultTargetTriple();
+
+            let mut target = ptr::null_mut();
+            let mut error_str = MaybeUninit::uninit();
+
+            if target_machine::LLVMGetTargetFromTriple(target_triple, &mut target, error_str.as_mut_ptr()) == 1 {
+                let error_str = error_str.assume_init();
+
+                println!("{}", CString::from_raw(error_str).to_string_lossy())
+            }
 
             LLVMLinkInMCJIT();
 
             let context = LLVMContextCreate();
             let module = LLVMModuleCreateWithNameInContext(module.as_ptr(), context);
             let builder = LLVMCreateBuilderInContext(context);
+
+            LLVMSetTarget(module, target_triple);
 
             let mut execution_engine = MaybeUninit::uninit();
             let mut err_string = MaybeUninit::uninit();
@@ -131,13 +148,26 @@ impl CodeGen {
         let ast = parser.run();
 
         unsafe {
-            for statement in ast {
-                self.gen_statement(statement);
-            }
+            self.init_stdlib();
 
-            if let CodeGenType::JIT { run_main } = self.codegen_type {
-                if run_main {
-                    self.run_main()
+            match self.codegen_type {
+                CodeGenType::JIT { run_main } => {
+                    for statement in ast {
+                        self.gen_statement(statement);
+                    }
+
+                    if run_main {
+                        self.run_main()
+                    }
+                }
+                CodeGenType::Repl => {
+                    for statement in ast {
+                        if let Statement::Expression(expression) = statement {
+                            self.run_top_level_expression(&expression);
+                        } else {
+                            self.gen_statement(statement);
+                        }
+                    }
                 }
             }
         }
@@ -163,8 +193,12 @@ impl CodeGen {
             LLVMDisposeBuilder(self.builder);
             LLVMDisposeModule(self.module);
             LLVMDisposeExecutionEngine(self.execution_engine);
+
+            LLVMShutdown();
         }
     }
+
+    unsafe fn run_top_level_expression(&mut self, _expression: &Expression) {}
 
     /// Run the main function.
     unsafe fn run_main(&mut self) -> ! {
@@ -180,95 +214,8 @@ impl CodeGen {
         process::exit(main_function(argc, argv.as_ptr()) as i32);
     }
 
-    /// Generate the function prototype.
-    pub(crate) unsafe fn gen_prototype(&mut self, prototype: &Prototype) -> LLVMValueRef {
-        let return_type = self.gen_type(prototype.return_type);
-        let mut argument_types = prototype.args.iter().map(|arg| self.gen_type(arg.typee)).collect::<Vec<_>>();
-
-        let function_type = LLVMFunctionType(return_type, argument_types.as_mut_ptr(), prototype.args.len() as u32, 0);
-        let function_value = LLVMAddFunction(self.module, cstring!("{}", prototype.name.as_str()).as_ptr(), function_type);
-
-        LLVMSetLinkage(function_value, LLVMLinkage::LLVMExternalLinkage);
-
-        for i in 0..prototype.args.len() {
-            let arg = &prototype.args[i];
-
-            let param = LLVMGetParam(function_value, i as u32);
-            LLVMSetValueName2(param, cstring!("{}", arg.name).as_ptr(), arg.name.len());
-        }
-
-        if LLVMRunFunctionPassManager(self.pass_manager, function_value) == 1 {
-            panic!("Running FunctionPassManager failed.")
-        }
-
-        function_value
-    }
-
-    /// Generate the function definition.
-    pub(crate) unsafe fn gen_function_def(&mut self, mut function: Function) {
-        function.prototype.name = mangle_function_name(function.prototype.name, function.prototype.args.iter().map(|arg| arg.typee).collect::<Vec<_>>());
-
-        let function_name = function.prototype.name.clone();
-        let function_value = self.gen_prototype(&function.prototype);
-
-        self.symbol_table.push_scope();
-
-        let entry = LLVMAppendBasicBlockInContext(self.context, function_value, cstring!("entry").as_ptr());
-        LLVMPositionBuilderAtEnd(self.builder, entry);
-
-        for i in 0..function.prototype.args.len() {
-            let arg = &function.prototype.args[i];
-
-            let param = LLVMGetParam(function_value, i as u32);
-            let kind = self.gen_type(arg.typee);
-
-            let variable_alloca = LLVMBuildAlloca(self.builder, kind, cstring!("{}", arg.name).as_ptr());
-            LLVMBuildStore(self.builder, param, variable_alloca);
-
-            let variable_ref = FluidVariableRef::new(true, arg.typee, variable_alloca);
-
-            self.symbol_table.insert_variable(arg.name.clone(), variable_ref);
-        }
-
-        let function_ref = FluidFunctionRef::new(function.prototype.args.iter().map(|arg| arg.typee).collect::<Vec<_>>(), function.prototype.return_type, function_value);
-
-        self.symbol_table.insert_function(function_name, function_ref);
-        self.gen_function_body(function.body);
-
-        self.symbol_table.pop_scope();
-
-        if function.prototype.return_type == Type::Void {
-            LLVMBuildRetVoid(self.builder);
-        }
-
-        // Dump the generated ir.
-        self.dump_value(function_value);
-
-        if LLVMVerifyFunction(function_value, LLVMVerifierFailureAction::LLVMReturnStatusAction) == 1 {
-            LLVMDeleteFunction(function_value);
-            panic!("Fluid generated invalid function ir.")
-        }
-    }
-
-    /// Generate an external definition.
-    pub(crate) unsafe fn gen_extern_def(&mut self, prototype: Prototype) {
-        let external_function = self.gen_prototype(&prototype);
-        self.dump_value(external_function);
-    }
-
-    /// Generate type.
-    pub(crate) unsafe fn gen_type(&mut self, kind: Type) -> LLVMTypeRef {
-        match kind {
-            Type::Void => LLVMVoidTypeInContext(self.context),
-            Type::Number => LLVMInt64TypeInContext(self.context),
-            Type::Float => LLVMFloatTypeInContext(self.context),
-            Type::String => LLVMPointerType(LLVMInt8TypeInContext(self.context), 0),
-            Type::Bool => LLVMInt1TypeInContext(self.context),
-        }
-    }
-
     /// Dump the given value.
-    #[inline(always)]
+    #[inline]
     pub(crate) unsafe fn dump_value(&self, value: LLVMValueRef) {
         if DEBUG {
             LLVMDumpValue(value);

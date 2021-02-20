@@ -105,8 +105,6 @@ pub enum Keyword {
     True,
     /// `false`
     False,
-    /// `inline`
-    Inline,
     /// `null`
     Null,
     /// `for`
@@ -160,7 +158,6 @@ impl Display for Keyword {
             Keyword::Else => write!(f, "else"),
             Keyword::True => write!(f, "true"),
             Keyword::False => write!(f, "false"),
-            Keyword::Inline => write!(f, "inline"),
             Keyword::Null => write!(f, "null"),
             Keyword::For => write!(f, "for"),
             Keyword::Loop => write!(f, "loop"),

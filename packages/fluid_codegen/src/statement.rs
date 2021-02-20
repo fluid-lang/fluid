@@ -1,6 +1,6 @@
 use fluid_parser::{Declaration, Expression, Statement, Type};
 
-use llvm_sys::core::*;
+use llvm::core::*;
 
 use crate::{cstring, symbol::FluidVariableRef, CodeGen};
 

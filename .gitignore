@@ -7,3 +7,5 @@ target
 # Files
 Cargo.lock
 history.txt
+
+*.ll

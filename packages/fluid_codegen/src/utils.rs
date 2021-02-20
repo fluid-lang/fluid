@@ -1,5 +1,5 @@
 use fluid_parser::Type;
-use llvm_sys::prelude::LLVMValueRef;
+use llvm::prelude::LLVMValueRef;
 
 /// Convert a string to CString
 #[macro_export]

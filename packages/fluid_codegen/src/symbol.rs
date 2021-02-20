@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use fluid_parser::Type;
-use llvm_sys::prelude::LLVMValueRef;
+use llvm::prelude::LLVMValueRef;
 
 /// The scope's unique id.
 type ScopeId = usize;
@@ -16,11 +16,14 @@ pub(crate) struct SymbolTable {
 }
 
 impl SymbolTable {
+    /// The global scope id.
+    const GLOBAL_SCOPE: ScopeId = 0;
+
     /// Create a new SymbolTable
     pub(crate) fn new() -> Self {
         let global = Scope::new(None);
         let scopes = vec![global];
-        let current = 0;
+        let current = Self::GLOBAL_SCOPE;
 
         Self { scopes, current }
     }
@@ -86,9 +89,9 @@ pub(crate) struct Scope {
     pub(crate) parent: Box<Option<ScopeId>>,
 
     /// List of all of the functions in the scope.
-    functions: HashMap<String, FluidFunctionRef>,
+    pub(crate) functions: HashMap<String, FluidFunctionRef>,
     /// List of all of the variables in the scope.
-    variables: HashMap<String, FluidVariableRef>,
+    pub(crate) variables: HashMap<String, FluidVariableRef>,
 }
 
 impl Scope {
@@ -103,25 +106,25 @@ impl Scope {
     }
 
     /// Insert a new function in the scope.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn insert_function(&mut self, function_name: String, function_ref: FluidFunctionRef) {
         self.functions.insert(function_name, function_ref);
     }
 
     /// Insert a new variable in the scope.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn insert_variable(&mut self, variable_name: String, variable_ref: FluidVariableRef) {
         self.variables.insert(variable_name, variable_ref);
     }
 
     /// Get a variable in the scope.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn get_variable(&self, variable_name: &str) -> Option<&FluidVariableRef> {
         self.variables.get(variable_name)
     }
 
     /// Get a variable in the scope.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn get_function(&self, function_name: &str) -> Option<&FluidFunctionRef> {
         self.functions.get(function_name)
     }
