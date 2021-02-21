@@ -25,7 +25,6 @@ impl CodeGen {
                 self.gen_expression(&expression);
             }
             Statement::Return(expression) => self.gen_return_statement(*expression),
-            Statement::VarDef(name, kind, value) => self.gen_var_def(name, kind, *value),
             Statement::Block(block) => self.gen_block(block),
             Statement::Declaration(decl) => self.gen_decl(*decl),
             _ => unimplemented!(),
@@ -35,6 +34,7 @@ impl CodeGen {
     pub(crate) unsafe fn gen_decl(&mut self, decl: Declaration) {
         match decl {
             Declaration::Function(function) => self.gen_function_def(function),
+            Declaration::VarDef(name, kind, value) => self.gen_var_def(name, kind, *value),
             Declaration::Extern(externs) => {
                 for external in externs {
                     self.gen_extern_def(external);

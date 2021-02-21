@@ -5,7 +5,6 @@
 
 mod ast;
 mod parser;
-mod utils;
 
 pub use ast::*;
 pub use parser::*;

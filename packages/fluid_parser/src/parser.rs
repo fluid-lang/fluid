@@ -13,7 +13,6 @@
 
 use fluid_lexer::{Keyword, Token, TokenType};
 
-use crate::advance;
 use crate::ast::*;
 
 /// Contains the internal state while processing the tokens provided by the lexer.
@@ -78,7 +77,7 @@ impl Parser {
             _ => panic!("Expected a type."),
         };
 
-        advance!(self);
+        self.advance();
 
         kind
     }
@@ -87,6 +86,22 @@ impl Parser {
     ///
     /// $tuple($(type),*)
     fn parse_tuple_type(&mut self) -> Type {
+        let mut tuple_kind_inner = vec![];
+
+        self.expect(TokenType::OpenParen);
+
+        while *self.peek() != TokenType::CloseParen {
+            let kind = self.parse_type();
+
+            if *self.peek() != TokenType::CloseParen {
+                self.expect(TokenType::Comma);
+            }
+
+            tuple_kind_inner.push(kind);
+        }
+
+        self.expect(TokenType::CloseParen);
+
         todo!()
     }
 
@@ -94,13 +109,13 @@ impl Parser {
     fn parse_proto(&mut self) -> Prototype {
         self.expect(TokenType::Keyword(Keyword::Fn));
 
-        let name = advance!(self => TokenType::Identifier);
+        let name = self.expect_identifier();
         let mut args = vec![];
 
         self.expect(TokenType::OpenParen);
 
         while *self.peek() != TokenType::CloseParen {
-            let arg_name = advance!(self => TokenType::Identifier);
+            let arg_name = self.expect_identifier();
 
             self.expect(TokenType::Colon);
 
@@ -191,7 +206,7 @@ impl Parser {
     fn parse_var_def(&mut self) -> Statement {
         self.expect(TokenType::Keyword(Keyword::Var));
 
-        let name = advance!(self => TokenType::Identifier);
+        let name = self.expect_identifier();
 
         self.expect(TokenType::Colon);
 
@@ -203,7 +218,7 @@ impl Parser {
 
         self.expect(TokenType::Semi);
 
-        Statement::VarDef(name, typee, Box::new(value))
+        Statement::Declaration(Box::new(Declaration::VarDef(name, typee, Box::new(value))))
     }
 
     /// Parse if statement.
@@ -255,7 +270,7 @@ impl Parser {
 
     /// Parse an identifier.
     fn parse_id(&mut self) -> Expression {
-        let id = advance!(self => TokenType::Identifier);
+        let id = self.expect_identifier();
 
         if *self.peek() == TokenType::OpenParen {
             let mut params = vec![];
@@ -282,57 +297,60 @@ impl Parser {
     fn parse_primary(&mut self) -> Expression {
         match self.peek().clone() {
             TokenType::Keyword(Keyword::True) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Bool(true))
             }
             TokenType::Keyword(Keyword::False) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Bool(false))
             }
             TokenType::Keyword(Keyword::Null) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Null)
             }
             TokenType::Number(number) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Number(number))
             }
             TokenType::Float(float) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Float(float))
             }
             TokenType::String(string) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::String(string))
             }
             TokenType::Char(char) => {
-                advance!(self);
+                self.advance();
                 Expression::Literal(Literal::Char(char))
             }
             TokenType::Identifier(_) => self.parse_id(),
-            TokenType::OpenParen => {
-                advance!(self);
-
-                let prime = self.parse_expression();
-                advance!(self);
-
-                Expression::Paren(Box::new(prime))
-            }
+            TokenType::OpenParen => self.parse_paren(),
             _ => panic!("Expected an expression, found `{:?}`", self.peek()),
         }
+    }
+
+    /// Parse a paren expresion.
+    fn parse_paren(&mut self) -> Expression {
+        self.expect(TokenType::OpenParen);
+
+        let prime = self.parse_expression();
+        self.expect(TokenType::CloseParen);
+
+        Expression::Paren(Box::new(prime))
     }
 
     /// Parse a unary expression.
     fn parse_unary(&mut self) -> Expression {
         match self.peek() {
             TokenType::Minus => {
-                advance!(self);
+                self.advance();
 
                 let right = self.parse_unary();
                 Expression::Unary(UnaryOp::Neg, Box::new(right))
             }
             TokenType::Bang => {
-                advance!(self);
+                self.advance();
 
                 let right = self.parse_unary();
                 Expression::Unary(UnaryOp::Not, Box::new(right))
@@ -346,7 +364,7 @@ impl Parser {
         let node = self.parse_or();
 
         if let TokenType::Eq = *self.peek() {
-            advance!(self);
+            self.advance();
 
             let value = self.parse_expression();
             let var = match node {
@@ -366,7 +384,7 @@ impl Parser {
 
         match self.peek() {
             TokenType::PipePipe => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_and();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Or, Box::new(rhs))
@@ -381,7 +399,7 @@ impl Parser {
 
         match self.peek() {
             TokenType::AmpAmp => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_equality();
                 Expression::BinaryOp(Box::new(node), BinaryOp::And, Box::new(rhs))
@@ -396,7 +414,7 @@ impl Parser {
 
         match self.peek() {
             TokenType::EqEq => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_comparison();
                 Expression::BinaryOp(Box::new(node), BinaryOp::EqEq, Box::new(rhs))
@@ -411,13 +429,13 @@ impl Parser {
 
         match self.peek() {
             TokenType::Greater => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_term();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Greater, Box::new(rhs))
             }
             TokenType::Lesser => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_term();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Lesser, Box::new(rhs))
@@ -432,13 +450,13 @@ impl Parser {
 
         match self.peek() {
             TokenType::Plus => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_factor();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Add, Box::new(rhs))
             }
             TokenType::Minus => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_factor();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Subtract, Box::new(rhs))
@@ -453,13 +471,13 @@ impl Parser {
 
         match self.peek() {
             TokenType::Star => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_unary();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Mul, Box::new(rhs))
             }
             TokenType::Slash => {
-                advance!(self);
+                self.advance();
 
                 let rhs = self.parse_unary();
                 Expression::BinaryOp(Box::new(node), BinaryOp::Div, Box::new(rhs))
@@ -468,12 +486,32 @@ impl Parser {
         }
     }
 
+    /// Advance to the next character.
+    #[inline]
+    fn advance(&mut self) {
+        self.index += 1;
+    }
+
+    /// Expect a token.
     fn expect(&mut self, token: TokenType) {
         if *self.peek() == token {
-            advance!(self);
+            self.advance();
         } else {
             panic!("Expected {}", token)
         }
+    }
+
+    /// Expect an identifier and return its value.
+    fn expect_identifier(&mut self) -> String {
+        let id = if let TokenType::Identifier(id) = self.peek() {
+            id.to_string()
+        } else {
+            panic!("Expected an identifier.")
+        };
+
+        self.advance();
+
+        id
     }
 
     /// Peek the current token type.

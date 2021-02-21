@@ -77,8 +77,6 @@ pub enum Statement {
     Return(Box<Expression>),
     /// If statement.
     If(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
-    /// Var def statement.
-    VarDef(String, Type, Box<Expression>),
     /// For statement.
     For(),
     /// A block statement.
@@ -94,6 +92,8 @@ pub enum Declaration {
     Function(Function),
     /// An external declaration.
     Extern(Vec<Prototype>),
+    /// A variable declaration.
+    VarDef(String, Type, Box<Expression>),
 }
 
 /// A function
