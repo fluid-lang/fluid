@@ -9,3 +9,5 @@ Cargo.lock
 history.txt
 
 *.ll
+*.obj
+*.o

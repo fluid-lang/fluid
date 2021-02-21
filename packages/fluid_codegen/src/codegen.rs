@@ -15,6 +15,7 @@ use llvm::{
     core::*,
     execution_engine::*,
     prelude::*,
+    target_machine::*,
     transforms::{scalar::*, util::*},
     *,
 };
@@ -55,6 +56,8 @@ pub struct CodeGen {
     pub(crate) symbol_table: SymbolTable,
     /// The codegen type.
     pub(crate) codegen_type: CodeGenType,
+    /// The target machine.
+    pub(crate) target_machine: LLVMTargetMachineRef,
 }
 
 impl CodeGen {
@@ -96,6 +99,15 @@ impl CodeGen {
 
                 println!("{}", CString::from_raw(error_str).to_string_lossy())
             }
+
+            let opt_level = LLVMCodeGenOptLevel::LLVMCodeGenLevelNone;
+            let reloc_mode = LLVMRelocMode::LLVMRelocDefault;
+            let code_model = LLVMCodeModel::LLVMCodeModelDefault;
+
+            let cpu = cstring!("native").as_ptr();
+            let features = cstring!("").as_ptr();
+
+            let target_machine = LLVMCreateTargetMachine(target, target_triple, cpu, features, opt_level, reloc_mode, code_model);
 
             LLVMLinkInMCJIT();
 
@@ -139,6 +151,7 @@ impl CodeGen {
                 execution_engine,
                 codegen_type,
                 symbol_table,
+                target_machine,
             }
         }
     }
@@ -176,13 +189,23 @@ impl CodeGen {
     /// Reset the codegen context.
     pub fn reset(&mut self) {}
 
-    /// Emit llvm ir.
+    /// Emit LLVM IR.
     pub fn emit_llvm(&mut self, file: &str) {
         unsafe {
             let file_name = Path::new(file).file_name().unwrap().to_str().unwrap().replace(".fluid", ".ll");
             let ir = CString::from_raw(LLVMPrintModuleToString(self.module));
 
             fs::write(file_name, ir.to_str().unwrap()).unwrap();
+        }
+    }
+
+    /// Emit an object file.
+    pub fn emit_object(&mut self, path: &Path) {
+        let mut error_str = MaybeUninit::uninit();
+        let file_name = cstring!("{}", path.to_string_lossy()).into_raw();
+
+        unsafe {
+            LLVMTargetMachineEmitToFile(self.target_machine, self.module, file_name, LLVMCodeGenFileType::LLVMObjectFile, error_str.as_mut_ptr());
         }
     }
 

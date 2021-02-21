@@ -6,7 +6,7 @@ use ansi_term::Colour;
 use rustyline::Editor;
 use structopt::StructOpt;
 
-use std::{error::Error, fs::File, io::Read, process};
+use std::{error::Error, fs::File, io::Read, path::Path, process};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HELP: &str = "At the prompt you can type Fluid Code or type repl commands preceded by a `.`
@@ -103,7 +103,24 @@ fn build_file(path: String, emit_llvm: bool) -> Result<(), Box<dyn Error>> {
         codegen.emit_llvm(&path);
         codegen.free();
     } else {
-        todo!()
+        let mut codegen = CodeGen::new(&path, CodeGenType::JIT { run_main: false });
+        let path = Path::new(&path);
+
+        codegen.run(parser);
+
+        if let Some(parent) = path.parent() {
+            let file_name = path.file_name().unwrap().to_string_lossy().replace(".fluid", ".obj");
+
+            let out = parent.join(file_name);
+            codegen.emit_object(&out);
+        } else {
+            let file_name = path.file_name().unwrap().to_string_lossy().replace(".fluid", ".obj");
+
+            let out = Path::new(&file_name);
+            codegen.emit_object(&out);
+        }
+
+        codegen.free();
     }
 
     Ok(())
