@@ -14,12 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install LLVM and Clang
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "11.0"
-        directory: ${{ runner.temp }}/llvm
+      - name: Install LLVM
+        run: sudo apt-get install llvm-dev
 
-    - uses: actions/checkout@v2
-    - name: Build
-      run: python tools/fluid.py check
+      - uses: actions/checkout@v2
+
+      - name: Build
+        run: python tools/fluid.py check
