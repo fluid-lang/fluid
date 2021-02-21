@@ -14,7 +14,7 @@ fn test_function() {
     let filename = "<test>";
 
     let mut lexer = Lexer::new(source, filename);
-    let tokens = lexer.run().into_iter().map(|token| token.kind).collect::<Vec<_>>();
+    let tokens = lexer.run().unwrap().into_iter().map(|token| token.kind).collect::<Vec<_>>();
 
     assert_eq!(
         tokens,

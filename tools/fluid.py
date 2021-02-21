@@ -62,8 +62,9 @@ class FluidPreCheck:
 
     def run(self):
         for package in os.listdir("./packages/"):
-            if os.system("cd ./packages/" + package + " && cargo test") != 0:
-                error("Failed running `cargo test` for " + package)
+            if os.path.isdir(os.path.join("./packages/", package)):
+                if os.system("cd ./packages/" + package + " && cargo test") != 0:
+                    error("Failed running `cargo test` for " + package)
 
         if os.system("cargo fmt -- --check") != 0:
             error("Failed running `cargo fmt -- --check`")
