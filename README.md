@@ -33,16 +33,17 @@ To learn more about the programming language, visit [fluid-lang.github.io](https
 
 ## Getting Started
 ### Setup
-The fluid build system uses a small python script called fluid.py to simplify the process of building fluid. More information about fluid.py can be found by runnning 
+Fluid uses a small python script called fluid.py to simplify the process of building fluid. More information about fluid.py can be found by runnning 
 ```bash
 $ python ./fluid.py --help
 ```
 
 1. Make sure you have installed the dependencies:
     
-    * `rust` The latest stable rust compiler
-    * `python` 3 or 2
+    * `rust`
+    * `python` 3 or 2.7
     * `git`
+    * `llvm-dev` 11.x
 
 2. Clone the [source](https://github.com/fluid-lang/fluid) using git
 

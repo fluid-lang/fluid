@@ -15,7 +15,9 @@ jobs:
 
     steps:
       - name: Install LLVM
-        run: sudo apt-get install llvm-dev
+        run: |
+          set -eux
+          sudo apt install -y llvm-11 clang-11 libgc-dev
 
       - uses: actions/checkout@v2
 
