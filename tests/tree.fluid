@@ -1,8 +1,10 @@
+#!/usr/bin/env fluid run
+
+// The main function takes two arguments argc and argv
+// - argc stands for argument count
+// - argv stands for argument vector
 function main(argc: number, argv: number) -> number {
+    // The return value from the main function will be the exit code of the program.
+    // The last exit code in bash/powershell can be found using the command echo $:?
     return argc;
 }
-
-function yo() {}
-
-"
-aa

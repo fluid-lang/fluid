@@ -99,3 +99,18 @@ fn string_test() {
         ]
     );
 }
+
+/// Test shebang.
+#[test]
+fn test_shebang() {
+    let source = "
+        #!/usr/bin/env fluid run
+    ";
+
+    let filename = "<test>";
+
+    let mut lexer = Lexer::new(source, filename);
+    let tokens = get_token_type(lexer.run().unwrap());
+
+    assert_eq!(tokens, vec![TokenType::EOF]);
+}

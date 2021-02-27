@@ -110,6 +110,7 @@ impl Lexer {
     /// It will fail if an illegal character is encountered. Thus, in that case it will result in returning a `Diagnostic`.
     pub fn get_next_token(&mut self) -> Result<Token, Diagnostic> {
         self.skip_whitespaces_and_comments();
+        self.skip_shebang();
 
         if self.is_eof() {
             // Return the EOF token if the lexer has reached at the end of the file.
@@ -465,13 +466,7 @@ impl Lexer {
                     self.advance();
 
                     if !self.is_eof() && self.current_char() == '/' {
-                        while !self.is_eof() {
-                            if self.current_char() == '\n' {
-                                break;
-                            }
-
-                            self.advance();
-                        }
+                        self.skip_to_end_of_line();
                     } else if !self.is_eof() && self.current_char() == '*' {
                         self.advance();
 
@@ -497,6 +492,38 @@ impl Lexer {
                 _ => break,
             }
         }
+    }
+
+    /// Skip shebang.
+    /// Shebang is the character sequence consisting of the characters number sign and exclamation mark (#!) at the beginning of a script.
+    ///
+    /// To use shebang with fluid. Add the following at the top of your main fluid file:
+    /// ```fluid
+    /// #!/usr/bin/env fluid run
+    /// ```
+    ///
+    /// **Note**: Shebang only has effect on unix like operating systems.
+    /// For more information about shebang: https://en.wikipedia.org/wiki/Shebang_(Unix)
+    #[inline]
+    fn skip_shebang(&mut self) {
+        if !self.is_eof() && !self.is_next_eof() && self.current_char() == '#' && self.next_char() == '!' {
+            self.skip_to_end_of_line()
+        }
+    }
+
+    /// Skip to the end of line.
+    fn skip_to_end_of_line(&mut self) {
+        while !self.is_eof() {
+            if self.current_char() == '\n' {
+                self.advance();
+
+                break;
+            }
+
+            self.advance();
+        }
+
+        self.skip_whitespaces_and_comments();
     }
 
     /// Make a error with a message, code.
@@ -551,6 +578,12 @@ impl Lexer {
     #[inline]
     fn is_eof(&self) -> bool {
         self.code.chars().nth(self.position).is_none()
+    }
+
+    /// Check if the next character is EOF (End of File)
+    #[inline]
+    fn is_next_eof(&self) -> bool {
+        self.code.chars().nth(self.position + 1).is_none()
     }
 
     /// Create a token with its mentioned type
