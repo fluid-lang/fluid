@@ -14,12 +14,10 @@ jobs:
     runs-on: ubuntu-18.04
 
     steps:
-      - name: Install LLVM
-        run: |
-          set -eux
-          sudo apt install -y llvm-11 clang-11 libgc-dev
-
       - uses: actions/checkout@v2
+
+      - name: Install LLVM
+        run: sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 
       - name: Build
         run: python tools/fluid.py check
