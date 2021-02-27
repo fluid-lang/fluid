@@ -5,6 +5,4 @@ authors = ["Anhad Singh <andypythonappdeveloper@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-ansi_term = "0.12.1"
-termcolor = "1.1.2"
-unicode-width = "0.1.8"
+annotate-snippets = { version = "0.7", features = ["color"] }

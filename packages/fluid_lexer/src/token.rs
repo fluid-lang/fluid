@@ -46,6 +46,7 @@ pub enum TokenType {
     Amp,
     /// `|`
     Pipe,
+
     // Multiple character tokens
     /// `==`
     EqEq,
@@ -132,16 +133,16 @@ impl Token {
 #[derive(Debug)]
 pub struct TokenPosition {
     /// Start position of the token.
-    pub start: usize,
+    pub position_start: usize,
     /// End position of the token.
-    pub end: usize,
+    pub position_end: usize,
     /// Line of the token.
     pub line: usize,
 }
 
 impl TokenPosition {
-    pub(crate) fn new(start: usize, end: usize, line: usize) -> Self {
-        Self { start, end, line }
+    pub(crate) fn new(position_start: usize, position_end: usize, line: usize) -> Self {
+        Self { position_start, position_end, line }
     }
 }
 

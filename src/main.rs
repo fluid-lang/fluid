@@ -153,7 +153,7 @@ fn repl() -> Result<(), Box<dyn Error>> {
                     match code.as_str() {
                         "help" => println!("{}", Colour::Yellow.paint(HELP)),
                         _ => {
-                            let mut lexer = Lexer::new(&code, &"<stdin>".into());
+                            let mut lexer = Lexer::new(&code, "<stdin>");
                             let tokens = match lexer.run() {
                                 Ok(tokens) => tokens,
                                 Err(errors) => {

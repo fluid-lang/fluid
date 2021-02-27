@@ -3,3 +3,6 @@ function main(argc: number, argv: number) -> number {
 }
 
 function yo() {}
+
+"
+aa

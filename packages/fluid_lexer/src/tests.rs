@@ -1,6 +1,10 @@
 //! This file contains all of the unit tests for the lexer.
 
-use crate::{Keyword, Lexer, TokenType};
+use crate::{Keyword, Lexer, Token, TokenType};
+
+fn get_token_type(tokens: Vec<Token>) -> Vec<TokenType> {
+    tokens.into_iter().map(|token| token.kind).collect::<Vec<_>>()
+}
 
 /// Test a function declaration
 #[test]
@@ -14,7 +18,7 @@ fn test_function() {
     let filename = "<test>";
 
     let mut lexer = Lexer::new(source, filename);
-    let tokens = lexer.run().unwrap().into_iter().map(|token| token.kind).collect::<Vec<_>>();
+    let tokens = get_token_type(lexer.run().unwrap());
 
     assert_eq!(
         tokens,
@@ -33,4 +37,19 @@ fn test_function() {
             TokenType::EOF
         ]
     );
+}
+
+/// A test comment.
+#[test]
+fn test_comment() {
+    let source = "
+        // Hello World!
+    ";
+
+    let filename = "<test>";
+
+    let mut lexer = Lexer::new(source, filename);
+    let tokens = get_token_type(lexer.run().unwrap());
+
+    assert_eq!(tokens, vec![TokenType::EOF]);
 }
