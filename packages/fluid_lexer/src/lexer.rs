@@ -223,15 +223,19 @@ impl Lexer {
     fn collect_id(&mut self) -> Option<Token> {
         if is_valid_start_of_identifier(self.current_char()) {
             let start = self.index;
+            let mut id = String::new();
 
+            id.push(self.current_char());
             self.advance();
 
             while !self.is_eof() && is_valid_continuation_of_identifier(self.current_char()) {
+                id.push(self.current_char());
+
                 self.advance();
             }
 
             // Get the substring.
-            let id = &self.code[start..self.index];
+            let id = id.as_str();
 
             match id {
                 "function" => Some(self.new_token(TokenType::Keyword(Keyword::Fn), start, self.index)),

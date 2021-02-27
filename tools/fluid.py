@@ -103,6 +103,7 @@ def main():
     if len(stderr["errors_vec"]) > 0:
         print("\n\033[1;31merror:\033[0m Aborting due to previous " + ("error" if len(
             stderr["errors_vec"]) == 1 else str(len(stderr["errors_vec"])) + " errors"))
+        exit(1)
 
 
 if __name__ == "__main__":
