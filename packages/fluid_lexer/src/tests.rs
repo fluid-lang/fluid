@@ -2,6 +2,7 @@
 
 use crate::{Keyword, Lexer, Token, TokenType};
 
+#[inline]
 fn get_token_type(tokens: Vec<Token>) -> Vec<TokenType> {
     tokens.into_iter().map(|token| token.kind).collect::<Vec<_>>()
 }
@@ -58,4 +59,43 @@ fn test_comment() {
     let tokens = get_token_type(lexer.run().unwrap());
 
     assert_eq!(tokens, vec![TokenType::EOF]);
+}
+
+/// String escape tests.
+#[test]
+fn string_test() {
+    let source = "
+        \"World\"
+
+        \"World\\n\"
+        \"World\\t\"
+        \"World\\r\"
+        \"World\\0\"
+        \"\\x48\\x65\\x6c\\x6c\\x6f World\"
+        \"I \\u{1F496} World\"
+        \"Hello \\b World\"
+
+        \"World\\\"\"
+    ";
+
+    let filename = "<test>";
+
+    let mut lexer = Lexer::new(source, filename);
+    let tokens = get_token_type(lexer.run().unwrap());
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::String(String::from("World")),
+            TokenType::String(String::from("World\n")),
+            TokenType::String(String::from("World\t")),
+            TokenType::String(String::from("World\r")),
+            TokenType::String(String::from("World\0")),
+            TokenType::String(String::from("Hello World")),
+            TokenType::String(String::from("I \u{1F496} World")), // 💖, Unicode scalar U+1F496
+            TokenType::String(String::from("Hello \x08 World")),
+            TokenType::String(String::from("World\"")),
+            TokenType::EOF
+        ]
+    );
 }

@@ -30,11 +30,13 @@ fn is_whitespace(char: char) -> bool {
 }
 
 /// Returns true if its a valid continuation of an identifer.
+#[inline]
 fn is_valid_continuation_of_identifier(char: char) -> bool {
     char.is_ascii_alphabetic() || char.is_ascii_digit() || matches!(char, '_')
 }
 
 /// Returns true if its a valid start of an identifier.
+#[inline]
 fn is_valid_start_of_identifier(char: char) -> bool {
     char.is_ascii_alphabetic() || matches!(char, '_')
 }
@@ -149,6 +151,40 @@ impl Lexer {
 
     /// Collect a string.
     fn collect_str(&mut self) -> Result<Token, Diagnostic> {
+        macro_rules! escape {
+            ($self:ident, $exp:expr) => {{
+                $exp;
+                $self.advance();
+
+                continue;
+            }};
+        }
+
+        macro_rules! next_hex {
+            ($self:ident, $line_start:ident, $index_start:ident, $alloca:ident) => {
+                if $self.is_eof() {
+                    unterminated_str!(self, $line_start, $index_start);
+                }
+
+                $alloca = $self.current_char();
+                $self.advance();
+            };
+        }
+
+        macro_rules! unterminated_str {
+            ($self:ident, $line_start:ident, $index_start:ident) => {
+                return Err($self
+                    .make_error("unterminated string literal", "E0002")
+                    .push_slice(
+                        Slice::new()
+                            .set_line_start($line_start)
+                            .set_line_end(self.line)
+                            .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range($index_start..$self.index)),
+                    )
+                    .build());
+            };
+        }
+
         let index_start = self.index;
         let line_start = self.line;
 
@@ -158,8 +194,131 @@ impl Lexer {
         let mut string = String::new();
 
         while !self.is_eof() && self.current_char() != '"' {
-            if self.current_char() == '\n' {
-                self.line += 1;
+            match self.current_char() {
+                '\n' => self.line += 1,
+                '\\' => {
+                    self.advance();
+
+                    if self.is_eof() {
+                        unterminated_str!(self, line_start, index_start);
+                    }
+
+                    let escape_start = self.index;
+
+                    match self.current_char() {
+                        'n' => escape!(self, string.push('\n')),
+                        't' => escape!(self, string.push('\t')),
+                        'r' => escape!(self, string.push('\r')),
+                        '0' => escape!(self, string.push('\0')),
+                        'b' => escape!(self, string.push('\x08')),
+
+                        'x' => {
+                            self.advance();
+
+                            let (h1, h2);
+
+                            next_hex!(self, index_start, line_start, h1);
+                            next_hex!(self, index_start, line_start, h2);
+
+                            let h1 = h1.to_digit(16).unwrap();
+                            let h2 = h2.to_digit(16).unwrap();
+
+                            let value = h1 * 16 + h2;
+                            let value = value as u8;
+
+                            string.push(value as char);
+
+                            continue;
+                        }
+
+                        'u' => {
+                            self.advance();
+
+                            if self.is_eof() {
+                                unterminated_str!(self, line_start, index_start);
+                            } else if self.current_char() != '{' {
+                                return Err(self
+                                    .make_error("incorrect unicode escape sequence", "E0003")
+                                    .push_slice(
+                                        Slice::new()
+                                            .set_line_start(line_start)
+                                            .set_line_end(self.line)
+                                            .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range(index_start..self.index)),
+                                    )
+                                    .build());
+                            }
+
+                            // Advance '{'
+                            self.advance();
+
+                            let mut n_digits = 1;
+
+                            if self.is_eof() {
+                                unterminated_str!(self, line_start, index_start);
+                            }
+
+                            let mut value = self.current_char().to_digit(16).unwrap();
+
+                            self.advance();
+
+                            loop {
+                                if self.is_eof() {
+                                    unterminated_str!(self, line_start, index_start);
+                                } else if self.current_char() == '}' {
+                                    self.advance();
+
+                                    if n_digits > 6 {
+                                        return Err(self
+                                            .make_error("overlong unicode escape (must have at most 6 hex digits)", "E0003")
+                                            .push_slice(
+                                                Slice::new()
+                                                    .set_line_start(line_start)
+                                                    .set_line_end(self.line)
+                                                    .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range(index_start..self.index)),
+                                            )
+                                            .build());
+                                    }
+
+                                    break;
+                                } else {
+                                    let digit = self.current_char().to_digit(16).unwrap();
+
+                                    self.advance();
+                                    n_digits += 1;
+
+                                    if n_digits > 6 {
+                                        // Stop updating value since we're sure that it's is incorrect already.
+                                        continue;
+                                    }
+
+                                    value = value * 16 + digit;
+                                }
+                            }
+
+                            string.push(std::char::from_u32(value).unwrap());
+
+                            continue;
+                        }
+
+                        '"' => escape!(self, string.push('"')),
+
+                        _ => {
+                            self.advance();
+
+                            return Err(self
+                                .make_error(format!("unknown character escape: {}", self.current_char()), "E0003")
+                                .push_slice(
+                                    Slice::new()
+                                        .set_line_start(line_start)
+                                        .set_line_end(self.line)
+                                        .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range(escape_start..self.index)),
+                                )
+                                .build());
+                        }
+                    }
+                }
+
+                _ => (),
             }
 
             string.push(self.current_char());
@@ -167,15 +326,7 @@ impl Lexer {
         }
 
         if self.is_eof() {
-            return Err(self
-                .make_error("unterminated string literal", "E0002")
-                .push_slice(
-                    Slice::new()
-                        .set_line_start(line_start)
-                        .set_line_end(self.line)
-                        .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range(index_start..self.index)),
-                )
-                .build());
+            unterminated_str!(self, line_start, index_start);
         }
 
         // Advance '"'
@@ -305,8 +456,7 @@ impl Lexer {
 
             match self.current_char() {
                 '\n' => {
-                    self.advance();
-
+                    self.position += 1;
                     self.line += 1;
                     self.index = 0;
                 }
