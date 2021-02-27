@@ -19,6 +19,9 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Add rustfmt
+        run: rustup component add rustfmt
+
       - name: Install LLVM
         run: sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 
