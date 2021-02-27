@@ -311,6 +311,9 @@ impl Lexer {
                     self.index = 0;
                 }
                 '/' => {
+                    // Advance '/'
+                    self.advance();
+
                     if !self.is_eof() && self.current_char() == '/' {
                         while !self.is_eof() {
                             if self.current_char() == '\n' {
@@ -319,8 +322,26 @@ impl Lexer {
 
                             self.advance();
                         }
-                    } else {
+                    } else if !self.is_eof() && self.current_char() == '*' {
                         self.advance();
+
+                        loop {
+                            if self.is_eof() {
+                                // TODO: Return error.
+                                break;
+                            }
+
+                            if self.current_char() == '*' && self.next_char() == '/' {
+                                // Advance '*'
+                                self.advance();
+                                // Advance '/'
+                                self.advance();
+
+                                break;
+                            }
+
+                            self.advance();
+                        }
                     }
                 }
                 _ => break,
@@ -368,6 +389,12 @@ impl Lexer {
     #[inline]
     fn current_char(&self) -> char {
         self.code.chars().nth(self.position).unwrap()
+    }
+
+    /// Returns the next character.
+    #[inline]
+    fn next_char(&self) -> char {
+        self.code.chars().nth(self.position + 1).unwrap()
     }
 
     /// Check if lexer has reached the EOF (End of File)

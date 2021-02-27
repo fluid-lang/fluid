@@ -44,6 +44,12 @@ fn test_function() {
 fn test_comment() {
     let source = "
         // Hello World!
+        /*
+            This is soo cool!
+
+            * !
+            * !
+        */
     ";
 
     let filename = "<test>";

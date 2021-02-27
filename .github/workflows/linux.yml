@@ -15,6 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
       - name: Install LLVM
         run: sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
