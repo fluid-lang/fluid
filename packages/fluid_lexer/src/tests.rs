@@ -7,7 +7,6 @@ fn get_token_type(tokens: Vec<Token>) -> Vec<TokenType> {
     tokens.into_iter().map(|token| token.kind).collect::<Vec<_>>()
 }
 
-/// Test a function declaration
 #[test]
 fn test_function() {
     let source = "
@@ -40,7 +39,6 @@ fn test_function() {
     );
 }
 
-/// A test comment.
 #[test]
 fn test_comment() {
     let source = "
@@ -50,6 +48,12 @@ fn test_comment() {
 
             * !
             * !
+        */
+
+        /*
+            /*
+                0
+            */
         */
     ";
 
@@ -61,7 +65,6 @@ fn test_comment() {
     assert_eq!(tokens, vec![TokenType::EOF]);
 }
 
-/// String escape tests.
 #[test]
 fn string_test() {
     let source = "
@@ -100,9 +103,20 @@ fn string_test() {
     );
 }
 
-/// Test shebang.
 #[test]
 fn test_shebang() {
+    let source = "#!/usr/bin/env fluid run";
+
+    let filename = "<test>";
+
+    let mut lexer = Lexer::new(source, filename);
+    let tokens = get_token_type(lexer.run().unwrap());
+
+    assert_eq!(tokens, vec![TokenType::EOF]);
+}
+
+#[test]
+fn test_invalid_shebang() {
     let source = "
         #!/usr/bin/env fluid run
     ";
@@ -112,5 +126,20 @@ fn test_shebang() {
     let mut lexer = Lexer::new(source, filename);
     let tokens = get_token_type(lexer.run().unwrap());
 
-    assert_eq!(tokens, vec![TokenType::EOF]);
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Hash,
+            TokenType::Bang,
+            TokenType::Slash,
+            TokenType::Identifier(String::from("usr")),
+            TokenType::Slash,
+            TokenType::Identifier(String::from("bin")),
+            TokenType::Slash,
+            TokenType::Identifier(String::from("env")),
+            TokenType::Identifier(String::from("fluid")),
+            TokenType::Identifier(String::from("run")),
+            TokenType::EOF
+        ]
+    );
 }

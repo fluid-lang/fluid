@@ -46,6 +46,8 @@ pub enum TokenType {
     Amp,
     /// `|`
     Pipe,
+    /// `#`
+    Hash,
 
     // Multiple character tokens
     /// `==`
@@ -187,6 +189,7 @@ impl Display for TokenType {
             TokenType::Greater => write!(f, ">"),
             TokenType::Lesser => write!(f, "<"),
             TokenType::Question => write!(f, "?"),
+            TokenType::Hash => write!(f, "#"),
             TokenType::Amp => write!(f, "&"),
             TokenType::Pipe => write!(f, "|"),
             TokenType::EqEq => write!(f, "=="),

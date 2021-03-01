@@ -76,6 +76,9 @@ impl Lexer {
         let mut tokens = vec![];
         let mut errors = vec![];
 
+        // We will skip if there is a shebang on the start of the file.
+        self.skip_shebang();
+
         loop {
             match self.get_next_token() {
                 Ok(token) => {
@@ -98,10 +101,13 @@ impl Lexer {
             }
         }
 
-        // Exit if the lexer has panicked.
         if errors.is_empty() {
+            // If the lexer has not panicked return the collected tokens.
+
             Ok(tokens)
         } else {
+            // If lexer has panicked then return the errors vector.
+
             Err(errors)
         }
     }
@@ -109,15 +115,12 @@ impl Lexer {
     /// Scans the next character and return a new `Token`. The source end is indicated by token.EOF.
     /// It will fail if an illegal character is encountered. Thus, in that case it will result in returning a `Diagnostic`.
     pub fn get_next_token(&mut self) -> Result<Token, Diagnostic> {
-        self.skip_whitespaces_and_comments();
-        self.skip_shebang();
+        self.skip_whitespaces_and_comments()?;
 
         if self.is_eof() {
             // Return the EOF token if the lexer has reached at the end of the file.
             return Ok(self.new_token(TokenType::EOF, self.index, self.index));
-        }
-
-        if let Some(token) = self.collect_id() {
+        } else if let Some(token) = self.collect_id() {
             return Ok(token);
         } else if let Some(token) = self.collect_number() {
             return Ok(token);
@@ -139,6 +142,7 @@ impl Lexer {
             '>' => advance!(self, TokenType::Greater),
             '<' => advance!(self, TokenType::Lesser),
             '?' => advance!(self, TokenType::Question),
+            '#' => advance!(self, TokenType::Hash),
             '-' => advance!(self, ['>' => TokenType::TArrow], TokenType::Minus),
             '!' => advance!(self, ['=' => TokenType::BangEq], TokenType::Bang),
             '&' => advance!(self, ['&' => TokenType::AmpAmp], TokenType::Amp),
@@ -447,7 +451,7 @@ impl Lexer {
     }
 
     /// Skip all of the white spaces and comments.
-    fn skip_whitespaces_and_comments(&mut self) {
+    fn skip_whitespaces_and_comments(&mut self) -> Result<(), Diagnostic> {
         while !self.is_eof() {
             if is_whitespace(self.current_char()) {
                 self.advance();
@@ -462,36 +466,64 @@ impl Lexer {
                     self.index = 0;
                 }
                 '/' => {
-                    // Advance '/'
-                    self.advance();
-
-                    if !self.is_eof() && self.current_char() == '/' {
+                    if !self.is_next_eof() && self.next_char() == '/' {
                         self.skip_to_end_of_line();
-                    } else if !self.is_eof() && self.current_char() == '*' {
-                        self.advance();
-
-                        loop {
-                            if self.is_eof() {
-                                // TODO: Return error.
-                                break;
-                            }
-
-                            if self.current_char() == '*' && self.next_char() == '/' {
-                                // Advance '*'
-                                self.advance();
-                                // Advance '/'
-                                self.advance();
-
-                                break;
-                            }
-
-                            self.advance();
-                        }
+                    } else if !self.is_next_eof() && self.next_char() == '*' {
+                        self.skip_block_comment()?;
+                    } else {
+                        break;
                     }
                 }
                 _ => break,
             }
         }
+
+        Ok(())
+    }
+
+    /// Skip a block comment.
+    /// Block comments like inline comment is also treated as whitespace.
+    ///
+    /// **Note**: Unlike C block comments can be nested.
+    /// Example:
+    /// ```fluid
+    /// /*
+    ///     /*
+    ///             Block comment inside a block comment!
+    ///             Hello World!
+    ///     */
+    ///
+    ///     Hello World!
+    /// */
+    /// ```
+    fn skip_block_comment(&mut self) -> Result<(), Diagnostic> {
+        let block_start = self.index;
+
+        loop {
+            self.advance();
+
+            if self.is_eof() {
+                return Err(self
+                    .make_error("unterminated block comment", "E0002")
+                    .push_slice(
+                        Slice::new()
+                            .set_line_start(self.line)
+                            .push_annotation(SourceAnnotation::new().set_kind(AnnotationType::Error).set_range(block_start..self.index)),
+                    )
+                    .build());
+            } else if !self.is_next_eof() && self.current_char() == '/' && self.next_char() == '*' {
+                self.skip_block_comment()?;
+            } else if self.current_char() == '*' && self.next_char() == '/' {
+                // Advance '*'
+                self.advance();
+                // Advance '/'
+                self.advance();
+
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     /// Skip shebang.
@@ -502,12 +534,19 @@ impl Lexer {
     /// #!/usr/bin/env fluid run
     /// ```
     ///
+    /// **Note**: Its not a valid shebang if its not at the start of the file.
+    /// Example:
+    /// ```fluid
+    ///           #!/usr/bin/env fluid run
+    /// ```
+    /// The above example will not be classified as if it has a shebang. It needs to start at index 0 and line 1.
+    ///
     /// **Note**: Shebang only has effect on unix like operating systems.
     /// For more information about shebang: https://en.wikipedia.org/wiki/Shebang_(Unix)
     #[inline]
     fn skip_shebang(&mut self) {
         if !self.is_eof() && !self.is_next_eof() && self.current_char() == '#' && self.next_char() == '!' {
-            self.skip_to_end_of_line()
+            self.skip_to_end_of_line();
         }
     }
 
@@ -522,8 +561,6 @@ impl Lexer {
 
             self.advance();
         }
-
-        self.skip_whitespaces_and_comments();
     }
 
     /// Make a error with a message, code.
